@@ -6,9 +6,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ===============================
+// ========================================
 // HEALTH CHECK
-// ===============================
+// ========================================
 
 app.get("/", (req, res) => {
   res.json({
@@ -20,9 +20,9 @@ app.get("/", (req, res) => {
   });
 });
 
-// ===============================
+// ========================================
 // VERIFY CUSTOMER
-// ===============================
+// ========================================
 
 app.post("/verify-customer", (req, res) => {
   console.log("========== VAPI VERIFY REQUEST ==========");
@@ -35,18 +35,19 @@ app.post("/verify-customer", (req, res) => {
   if (toolCall) {
     const toolCallId = toolCall.id;
 
-    // Vapi can send arguments as an object or JSON string
+    // Get tool arguments
     let args =
       toolCall.arguments ||
       toolCall.parameters ||
       toolCall.function?.arguments ||
       {};
 
+    // Sometimes Vapi sends arguments as a JSON string
     if (typeof args === "string") {
       try {
         args = JSON.parse(args);
       } catch (error) {
-        console.log("Unable to parse tool arguments:", error);
+        console.log("Could not parse tool arguments:", error);
         args = {};
       }
     }
@@ -55,24 +56,29 @@ app.post("/verify-customer", (req, res) => {
       args.customer_name || ""
     ).trim();
 
-    console.log("Customer name:", customerName);
+    console.log("Customer Name:", customerName);
 
+    // -------------------------------
     // Missing customer name
+    // -------------------------------
+
     if (!customerName) {
-      console.log("Verification failed: customer name missing");
+      console.log("VERIFICATION FAILED");
 
       return res.status(200).json({
         results: [
           {
             toolCallId: toolCallId,
-            result:
-              "VERIFICATION FAILED. Customer name is required."
+            result: "VERIFICATION FAILED"
           }
         ]
       });
     }
 
+    // -------------------------------
     // Successful verification
+    // -------------------------------
+
     console.log("VERIFICATION SUCCESSFUL");
     console.log("Customer ID: KAP1001");
 
@@ -80,17 +86,15 @@ app.post("/verify-customer", (req, res) => {
       results: [
         {
           toolCallId: toolCallId,
-          result:
-            "VERIFICATION SUCCESSFUL. Customer identity verified successfully. Customer ID: KAP1001. Customer name: " +
-            customerName
+          result: "VERIFIED"
         }
       ]
     });
   }
 
-  // ===============================
+  // ========================================
   // MANUAL TEST REQUEST
-  // ===============================
+  // ========================================
 
   const customerName = String(
     req.body?.customer_name || ""
@@ -107,13 +111,13 @@ app.post("/verify-customer", (req, res) => {
     verified: true,
     customer_id: "KAP1001",
     customer_name: customerName,
-    message: "VERIFICATION SUCCESSFUL"
+    message: "VERIFIED"
   });
 });
 
-// ===============================
+// ========================================
 // CUSTOMER DETAILS
-// ===============================
+// ========================================
 
 app.post("/customer-details", (req, res) => {
   console.log("========== VAPI CUSTOMER DETAILS ==========");
@@ -126,17 +130,22 @@ app.post("/customer-details", (req, res) => {
   if (toolCall) {
     const toolCallId = toolCall.id;
 
+    // Get tool arguments
     let args =
       toolCall.arguments ||
       toolCall.parameters ||
       toolCall.function?.arguments ||
       {};
 
+    // Parse JSON string if necessary
     if (typeof args === "string") {
       try {
         args = JSON.parse(args);
       } catch (error) {
-        console.log("Unable to parse customer details arguments");
+        console.log(
+          "Could not parse customer details arguments:",
+          error
+        );
         args = {};
       }
     }
@@ -147,20 +156,25 @@ app.post("/customer-details", (req, res) => {
 
     console.log("Customer ID:", customerId);
 
-    // Customer not found
+    // -------------------------------
+    // Invalid customer ID
+    // -------------------------------
+
     if (customerId !== "KAP1001") {
       return res.status(200).json({
         results: [
           {
             toolCallId: toolCallId,
-            result:
-              "Customer details could not be found."
+            result: "CUSTOMER DETAILS NOT FOUND"
           }
         ]
       });
     }
 
-    // Customer details found
+    // -------------------------------
+    // Successful customer details
+    // -------------------------------
+
     console.log("CUSTOMER DETAILS FOUND");
 
     return res.status(200).json({
@@ -168,8 +182,6 @@ app.post("/customer-details", (req, res) => {
         {
           toolCallId: toolCallId,
           result:
-            "Customer details retrieved successfully. " +
-            "Customer ID: KAP1001. " +
             "Customer name: Rahul Sharma. " +
             "Account status: Active. " +
             "Outstanding amount: 5000 rupees. " +
@@ -179,9 +191,9 @@ app.post("/customer-details", (req, res) => {
     });
   }
 
-  // ===============================
+  // ========================================
   // MANUAL TEST REQUEST
-  // ===============================
+  // ========================================
 
   const customerId = String(
     req.body?.customer_id || ""
@@ -203,9 +215,9 @@ app.post("/customer-details", (req, res) => {
   });
 });
 
-// ===============================
+// ========================================
 // START SERVER
-// ===============================
+// ========================================
 
 const PORT = process.env.PORT || 3000;
 
