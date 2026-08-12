@@ -29,7 +29,10 @@ app.get("/verify-customer", (req, res) => {
 // VERIFY CUSTOMER
 // ===============================
 app.post("/verify-customer", (req, res) => {
-  console.log("Verify request:", JSON.stringify(req.body));
+      console.log("========== VAPI REQUEST ==========");
+      console.log(JSON.stringify(req.body, null, 2));
+      console.log("==================================");
+
 
   const toolCall = req.body?.message?.toolCallList?.[0];
 
