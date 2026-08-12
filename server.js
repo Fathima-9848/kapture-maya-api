@@ -6,7 +6,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health check
+// ===============================
+// HEALTH CHECK
+// ===============================
+
 app.get("/", (req, res) => {
   res.json({
     status: "API is running",
@@ -17,55 +20,83 @@ app.get("/", (req, res) => {
   });
 });
 
-// GET endpoint for browser testing
-app.get("/verify-customer", (req, res) => {
-  res.json({
-    status: "API is running",
-    endpoint: "POST /verify-customer"
-  });
-});
-
 // ===============================
 // VERIFY CUSTOMER
 // ===============================
+
 app.post("/verify-customer", (req, res) => {
-      console.log("========== VAPI REQUEST ==========");
-      console.log(JSON.stringify(req.body, null, 2));
-      console.log("==================================");
+  console.log("========== VAPI VERIFY REQUEST ==========");
+  console.log(JSON.stringify(req.body, null, 2));
+  console.log("==========================================");
 
-
+  // Vapi tool call
   const toolCall = req.body?.message?.toolCallList?.[0];
 
-  // Vapi request
   if (toolCall) {
     const toolCallId = toolCall.id;
-    const customerName = toolCall.arguments?.customer_name;
 
+    // Vapi can send arguments as an object or JSON string
+    let args =
+      toolCall.arguments ||
+      toolCall.parameters ||
+      toolCall.function?.arguments ||
+      {};
+
+    if (typeof args === "string") {
+      try {
+        args = JSON.parse(args);
+      } catch (error) {
+        console.log("Unable to parse tool arguments:", error);
+        args = {};
+      }
+    }
+
+    const customerName = String(
+      args.customer_name || ""
+    ).trim();
+
+    console.log("Customer name:", customerName);
+
+    // Missing customer name
     if (!customerName) {
+      console.log("Verification failed: customer name missing");
+
       return res.status(200).json({
         results: [
           {
-            toolCallId,
-            result: "VERIFICATION FAILED. Customer name is required."
+            toolCallId: toolCallId,
+            result:
+              "VERIFICATION FAILED. Customer name is required."
           }
         ]
       });
     }
 
+    // Successful verification
+    console.log("VERIFICATION SUCCESSFUL");
+    console.log("Customer ID: KAP1001");
+
     return res.status(200).json({
       results: [
         {
-          toolCallId,
-          result: `VERIFICATION SUCCESSFUL. Customer identity has been verified. Customer ID: KAP1001. Customer name: ${customerName}.`
+          toolCallId: toolCallId,
+          result:
+            "VERIFICATION SUCCESSFUL. Customer identity verified successfully. Customer ID: KAP1001. Customer name: " +
+            customerName
         }
       ]
     });
   }
 
-  // Manual/API request
-  const { customer_name } = req.body || {};
+  // ===============================
+  // MANUAL TEST REQUEST
+  // ===============================
 
-  if (!customer_name) {
+  const customerName = String(
+    req.body?.customer_name || ""
+  ).trim();
+
+  if (!customerName) {
     return res.status(400).json({
       verified: false,
       message: "Customer name is required"
@@ -75,67 +106,88 @@ app.post("/verify-customer", (req, res) => {
   return res.status(200).json({
     verified: true,
     customer_id: "KAP1001",
-    customer_name,
-    message: "Customer identity verified successfully"
+    customer_name: customerName,
+    message: "VERIFICATION SUCCESSFUL"
   });
 });
 
 // ===============================
 // CUSTOMER DETAILS
 // ===============================
-app.post("/customer-details", (req, res) => {
-  console.log("Customer details request:", JSON.stringify(req.body));
 
+app.post("/customer-details", (req, res) => {
+  console.log("========== VAPI CUSTOMER DETAILS ==========");
+  console.log(JSON.stringify(req.body, null, 2));
+  console.log("============================================");
+
+  // Vapi tool call
   const toolCall = req.body?.message?.toolCallList?.[0];
 
-  // Vapi request
   if (toolCall) {
     const toolCallId = toolCall.id;
-    const customerId = toolCall.arguments?.customer_id;
 
-    if (!customerId) {
-      return res.status(200).json({
-        results: [
-          {
-            toolCallId,
-            result: "Customer ID is required."
-          }
-        ]
-      });
+    let args =
+      toolCall.arguments ||
+      toolCall.parameters ||
+      toolCall.function?.arguments ||
+      {};
+
+    if (typeof args === "string") {
+      try {
+        args = JSON.parse(args);
+      } catch (error) {
+        console.log("Unable to parse customer details arguments");
+        args = {};
+      }
     }
 
+    const customerId = String(
+      args.customer_id || ""
+    ).trim();
+
+    console.log("Customer ID:", customerId);
+
+    // Customer not found
     if (customerId !== "KAP1001") {
       return res.status(200).json({
         results: [
           {
-            toolCallId,
-            result: "Customer details could not be found."
+            toolCallId: toolCallId,
+            result:
+              "Customer details could not be found."
           }
         ]
       });
     }
 
+    // Customer details found
+    console.log("CUSTOMER DETAILS FOUND");
+
     return res.status(200).json({
       results: [
         {
-          toolCallId,
-          result: JSON.stringify({
-            customer_id: "KAP1001",
-            customer_name: "Rahul Sharma",
-            account_status: "Active",
-            outstanding_amount: 5000,
-            due_date: "2026-08-20",
-            message: "Customer details retrieved successfully."
-          })
+          toolCallId: toolCallId,
+          result:
+            "Customer details retrieved successfully. " +
+            "Customer ID: KAP1001. " +
+            "Customer name: Rahul Sharma. " +
+            "Account status: Active. " +
+            "Outstanding amount: 5000 rupees. " +
+            "Due date: August 20, 2026."
         }
       ]
     });
   }
 
-  // Manual/API request
-  const { customer_id } = req.body || {};
+  // ===============================
+  // MANUAL TEST REQUEST
+  // ===============================
 
-  if (customer_id !== "KAP1001") {
+  const customerId = String(
+    req.body?.customer_id || ""
+  ).trim();
+
+  if (customerId !== "KAP1001") {
     return res.status(404).json({
       message: "Customer details could not be found."
     });
@@ -154,8 +206,11 @@ app.post("/customer-details", (req, res) => {
 // ===============================
 // START SERVER
 // ===============================
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Kapture Maya API running on port ${PORT}`);
+  console.log(
+    `Kapture Maya API running on port ${PORT}`
+  );
 });
