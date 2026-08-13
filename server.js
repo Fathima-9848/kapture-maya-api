@@ -3,25 +3,12 @@ const cors = require("cors");
 
 const app = express();
 
-// ===============================
-// MIDDLEWARE
-// ===============================
-
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-  })
-);
-
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// ===============================
-// HEALTH CHECK
-// ===============================
+const PORT = process.env.PORT || 10000;
 
+// Health check
 app.get("/", (req, res) => {
   res.json({
     status: "API is running",
@@ -33,29 +20,51 @@ app.get("/", (req, res) => {
   });
 });
 
-// ===============================
+// ----------------------------------------------------
 // VERIFY CUSTOMER
-// ===============================
-
+// ----------------------------------------------------
 app.post("/verify-customer", (req, res) => {
   console.log("================================");
-  console.log("VERIFY CUSTOMER");
-  console.log("Request Body:", req.body);
-  console.log("================================");
+  console.log("VERIFY CUSTOMER REQUEST");
+  console.log("Full body:", JSON.stringify(req.body, null, 2));
 
-  const { customer_name } = req.body;
+  // Accept normal REST request
+  let customerName = req.body?.customer_name;
 
-  console.log("Customer Name:", customer_name);
+  // Accept Vapi tool-call formats
+  if (!customerName && req.body?.message?.toolCallList?.length) {
+    const toolCall = req.body.message.toolCallList[0];
 
-  if (!customer_name) {
+    customerName =
+      toolCall?.function?.arguments?.customer_name ||
+      toolCall?.parameters?.customer_name ||
+      toolCall?.args?.customer_name;
+  }
+
+  if (!customerName && req.body?.message?.toolCalls?.length) {
+    const toolCall = req.body.message.toolCalls[0];
+
+    customerName =
+      toolCall?.function?.arguments?.customer_name ||
+      toolCall?.parameters?.customer_name ||
+      toolCall?.args?.customer_name;
+  }
+
+  console.log("Customer Name:", customerName);
+
+  if (!customerName) {
     return res.status(400).json({
       success: false,
       verified: false,
-      message: "Customer name is required."
+      message: "customer_name is required"
     });
   }
 
-  if (customer_name.trim().toLowerCase() === "rahul sharma") {
+  const normalizedName = String(customerName)
+    .trim()
+    .toLowerCase();
+
+  if (normalizedName === "rahul sharma") {
     return res.json({
       success: true,
       verified: true,
@@ -68,35 +77,47 @@ app.post("/verify-customer", (req, res) => {
   return res.json({
     success: true,
     verified: false,
+    customer_id: null,
+    customer_name: customerName,
     message: "Customer identity could not be verified."
   });
 });
 
-// ===============================
+// ----------------------------------------------------
 // CUSTOMER DETAILS
-// ===============================
-
+// ----------------------------------------------------
 app.post("/customer-details", (req, res) => {
   console.log("================================");
-  console.log("CUSTOMER DETAILS");
-  console.log("Request Body:", req.body);
-  console.log("================================");
+  console.log("CUSTOMER DETAILS REQUEST");
+  console.log("Full body:", JSON.stringify(req.body, null, 2));
 
-  const { customer_id } = req.body;
+  let customerId = req.body?.customer_id;
 
-  console.log("Customer ID:", customer_id);
+  // Support Vapi tool-call format
+  if (!customerId && req.body?.message?.toolCallList?.length) {
+    const toolCall = req.body.message.toolCallList[0];
 
-  if (!customer_id) {
-    return res.status(400).json({
-      success: false,
-      message: "Customer ID is required."
-    });
+    customerId =
+      toolCall?.function?.arguments?.customer_id ||
+      toolCall?.parameters?.customer_id ||
+      toolCall?.args?.customer_id;
   }
 
-  if (customer_id !== "KAP1001") {
+  if (!customerId && req.body?.message?.toolCalls?.length) {
+    const toolCall = req.body.message.toolCalls[0];
+
+    customerId =
+      toolCall?.function?.arguments?.customer_id ||
+      toolCall?.parameters?.customer_id ||
+      toolCall?.args?.customer_id;
+  }
+
+  console.log("Customer ID:", customerId);
+
+  if (customerId !== "KAP1001") {
     return res.status(404).json({
       success: false,
-      message: "Customer account not found."
+      message: "Customer not found."
     });
   }
 
@@ -108,96 +129,91 @@ app.post("/customer-details", (req, res) => {
     overdue_amount: 8499,
     currency: "INR",
     days_past_due: 12,
-    due_date: "2026-08-20",
-    message: "Customer details retrieved successfully."
+    due_date: "2026-08-20"
   });
 });
 
-// ===============================
+// ----------------------------------------------------
 // LOG PROMISE TO PAY
-// ===============================
-
+// ----------------------------------------------------
 app.post("/log-promise-to-pay", (req, res) => {
   console.log("================================");
-  console.log("LOG PROMISE TO PAY");
-  console.log("Request Body:", req.body);
-  console.log("================================");
+  console.log("LOG PROMISE TO PAY REQUEST");
+  console.log("Full body:", JSON.stringify(req.body, null, 2));
 
-  const {
-    customer_id,
-    promise_date,
-    promise_amount
-  } = req.body;
+  let customerId = req.body?.customer_id;
+  let promiseDate = req.body?.promise_date;
+  let promiseAmount = req.body?.promise_amount;
 
-  console.log("Customer ID:", customer_id);
-  console.log("Promise Date:", promise_date);
-  console.log("Promise Amount:", promise_amount);
+  // Support Vapi tool-call format
+  if (req.body?.message?.toolCallList?.length) {
+    const toolCall = req.body.message.toolCallList[0];
 
-  if (
-    !customer_id ||
-    !promise_date ||
-    promise_amount === undefined ||
-    promise_amount === null ||
-    promise_amount === ""
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required promise-to-pay information.",
-      received: {
-        customer_id: customer_id || null,
-        promise_date: promise_date || null,
-        promise_amount:
-          promise_amount !== undefined &&
-          promise_amount !== null
-            ? promise_amount
-            : null
-      }
-    });
+    customerId =
+      customerId ||
+      toolCall?.function?.arguments?.customer_id ||
+      toolCall?.parameters?.customer_id ||
+      toolCall?.args?.customer_id;
+
+    promiseDate =
+      promiseDate ||
+      toolCall?.function?.arguments?.promise_date ||
+      toolCall?.parameters?.promise_date ||
+      toolCall?.args?.promise_date;
+
+    promiseAmount =
+      promiseAmount ||
+      toolCall?.function?.arguments?.promise_amount ||
+      toolCall?.parameters?.promise_amount ||
+      toolCall?.args?.promise_amount;
   }
 
-  if (customer_id !== "KAP1001") {
-    return res.status(404).json({
-      success: false,
-      message: "Customer not found."
-    });
+  if (req.body?.message?.toolCalls?.length) {
+    const toolCall = req.body.message.toolCalls[0];
+
+    customerId =
+      customerId ||
+      toolCall?.function?.arguments?.customer_id ||
+      toolCall?.parameters?.customer_id ||
+      toolCall?.args?.customer_id;
+
+    promiseDate =
+      promiseDate ||
+      toolCall?.function?.arguments?.promise_date ||
+      toolCall?.parameters?.promise_date ||
+      toolCall?.args?.promise_date;
+
+    promiseAmount =
+      promiseAmount ||
+      toolCall?.function?.arguments?.promise_amount ||
+      toolCall?.parameters?.promise_amount ||
+      toolCall?.args?.promise_amount;
   }
 
-  const amount = Number(promise_amount);
+  console.log("Customer ID:", customerId);
+  console.log("Promise Date:", promiseDate);
+  console.log("Promise Amount:", promiseAmount);
 
-  if (Number.isNaN(amount)) {
+  if (!customerId || !promiseDate || !promiseAmount) {
     return res.status(400).json({
       success: false,
-      message: "Promise amount must be a valid number."
+      message:
+        "customer_id, promise_date and promise_amount are required"
     });
   }
 
   return res.json({
     success: true,
-    customer_id,
-    promise_date,
-    promise_amount: amount,
-    currency: "INR",
+    customer_id: customerId,
+    promise_date: promiseDate,
+    promise_amount: String(promiseAmount),
     message: "Promise to pay recorded successfully."
   });
 });
 
-// ===============================
-// 404
-// ===============================
-
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Endpoint not found."
-  });
-});
-
-// ===============================
+// ----------------------------------------------------
 // START SERVER
-// ===============================
-
-const PORT = process.env.PORT || 10000;
-
-app.listen(PORT, () => {
+// ----------------------------------------------------
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Kapture Maya API running on port ${PORT}`);
 });
