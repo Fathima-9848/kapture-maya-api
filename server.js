@@ -1,13 +1,26 @@
 const express = require("express");
+const cors = require("cors");
 
 const app = express();
+
+// ===============================
+// MIDDLEWARE
+// ===============================
+
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ======================================================
-// HOME / HEALTH CHECK
-// ======================================================
+// ===============================
+// HEALTH CHECK
+// ===============================
 
 app.get("/", (req, res) => {
   res.json({
@@ -20,14 +33,18 @@ app.get("/", (req, res) => {
   });
 });
 
-// ======================================================
+// ===============================
 // VERIFY CUSTOMER
-// ======================================================
+// ===============================
 
 app.post("/verify-customer", (req, res) => {
+  console.log("================================");
+  console.log("VERIFY CUSTOMER");
+  console.log("Request Body:", req.body);
+  console.log("================================");
+
   const { customer_name } = req.body;
 
-  console.log("Verify Customer Request:");
   console.log("Customer Name:", customer_name);
 
   if (!customer_name) {
@@ -38,12 +55,7 @@ app.post("/verify-customer", (req, res) => {
     });
   }
 
-  const normalizedName = customer_name
-    .trim()
-    .toLowerCase();
-
-  // Demo customer
-  if (normalizedName === "rahul sharma") {
+  if (customer_name.trim().toLowerCase() === "rahul sharma") {
     return res.json({
       success: true,
       verified: true,
@@ -60,14 +72,18 @@ app.post("/verify-customer", (req, res) => {
   });
 });
 
-// ======================================================
-// GET CUSTOMER DETAILS
-// ======================================================
+// ===============================
+// CUSTOMER DETAILS
+// ===============================
 
 app.post("/customer-details", (req, res) => {
+  console.log("================================");
+  console.log("CUSTOMER DETAILS");
+  console.log("Request Body:", req.body);
+  console.log("================================");
+
   const { customer_id } = req.body;
 
-  console.log("Customer Details Request:");
   console.log("Customer ID:", customer_id);
 
   if (!customer_id) {
@@ -97,15 +113,15 @@ app.post("/customer-details", (req, res) => {
   });
 });
 
-// ======================================================
+// ===============================
 // LOG PROMISE TO PAY
-// ======================================================
+// ===============================
 
 app.post("/log-promise-to-pay", (req, res) => {
-  console.log("======================================");
-  console.log("LOG PROMISE TO PAY REQUEST");
+  console.log("================================");
+  console.log("LOG PROMISE TO PAY");
   console.log("Request Body:", req.body);
-  console.log("======================================");
+  console.log("================================");
 
   const {
     customer_id,
@@ -117,10 +133,13 @@ app.post("/log-promise-to-pay", (req, res) => {
   console.log("Promise Date:", promise_date);
   console.log("Promise Amount:", promise_amount);
 
-  // Check required fields
-  if (!customer_id || !promise_date || promise_amount === undefined || promise_amount === null || promise_amount === "") {
-    console.log("Missing promise-to-pay information.");
-
+  if (
+    !customer_id ||
+    !promise_date ||
+    promise_amount === undefined ||
+    promise_amount === null ||
+    promise_amount === ""
+  ) {
     return res.status(400).json({
       success: false,
       message: "Missing required promise-to-pay information.",
@@ -128,14 +147,14 @@ app.post("/log-promise-to-pay", (req, res) => {
         customer_id: customer_id || null,
         promise_date: promise_date || null,
         promise_amount:
-          promise_amount !== undefined && promise_amount !== null
+          promise_amount !== undefined &&
+          promise_amount !== null
             ? promise_amount
             : null
       }
     });
   }
 
-  // Check customer
   if (customer_id !== "KAP1001") {
     return res.status(404).json({
       success: false,
@@ -143,7 +162,6 @@ app.post("/log-promise-to-pay", (req, res) => {
     });
   }
 
-  // Convert amount safely to number
   const amount = Number(promise_amount);
 
   if (Number.isNaN(amount)) {
@@ -153,22 +171,19 @@ app.post("/log-promise-to-pay", (req, res) => {
     });
   }
 
-  // Successful response
-  console.log("Promise to pay recorded successfully.");
-
   return res.json({
     success: true,
-    customer_id: customer_id,
-    promise_date: promise_date,
+    customer_id,
+    promise_date,
     promise_amount: amount,
     currency: "INR",
     message: "Promise to pay recorded successfully."
   });
 });
 
-// ======================================================
-// 404 HANDLER
-// ======================================================
+// ===============================
+// 404
+// ===============================
 
 app.use((req, res) => {
   res.status(404).json({
@@ -177,9 +192,9 @@ app.use((req, res) => {
   });
 });
 
-// ======================================================
+// ===============================
 // START SERVER
-// ======================================================
+// ===============================
 
 const PORT = process.env.PORT || 10000;
 
