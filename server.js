@@ -15,9 +15,9 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// --------------------------------------------------
+// ==================================================
 // HOME
-// --------------------------------------------------
+// ==================================================
 
 app.get("/", (req, res) => {
   res.json({
@@ -31,14 +31,14 @@ app.get("/", (req, res) => {
   });
 });
 
-// --------------------------------------------------
+// ==================================================
 // VERIFY CUSTOMER
-// --------------------------------------------------
+// ==================================================
 
 app.post("/verify-customer", (req, res) => {
   console.log("================================");
   console.log("VERIFY CUSTOMER REQUEST");
-  console.log("Body:", JSON.stringify(req.body));
+  console.log("Body:", JSON.stringify(req.body, null, 2));
 
   const customerName = req.body?.customer_name;
 
@@ -48,11 +48,13 @@ app.post("/verify-customer", (req, res) => {
     return res.status(400).json({
       success: false,
       verified: false,
+      customer_id: null,
+      customer_name: "",
       message: "customer_name is required",
     });
   }
 
-  const normalizedName = customerName.trim().toLowerCase();
+  const normalizedName = String(customerName).trim().toLowerCase();
 
   if (normalizedName === "rahul sharma") {
     console.log("Customer VERIFIED");
@@ -72,19 +74,19 @@ app.post("/verify-customer", (req, res) => {
     success: true,
     verified: false,
     customer_id: null,
-    customer_name: customerName,
+    customer_name: String(customerName),
     message: "Customer identity could not be verified.",
   });
 });
 
-// --------------------------------------------------
+// ==================================================
 // CUSTOMER DETAILS
-// --------------------------------------------------
+// ==================================================
 
 app.post("/customer-details", (req, res) => {
   console.log("================================");
   console.log("CUSTOMER DETAILS REQUEST");
-  console.log("Body:", JSON.stringify(req.body));
+  console.log("Body:", JSON.stringify(req.body, null, 2));
 
   const customerId = req.body?.customer_id;
 
@@ -116,14 +118,14 @@ app.post("/customer-details", (req, res) => {
   });
 });
 
-// --------------------------------------------------
+// ==================================================
 // LOG PROMISE TO PAY
-// --------------------------------------------------
+// ==================================================
 
 app.post("/log-promise-to-pay", (req, res) => {
   console.log("================================");
   console.log("PROMISE TO PAY REQUEST");
-  console.log("Body:", JSON.stringify(req.body));
+  console.log("Body:", JSON.stringify(req.body, null, 2));
 
   const customerId = req.body?.customer_id;
   const promiseDate = req.body?.promise_date;
@@ -150,72 +152,211 @@ app.post("/log-promise-to-pay", (req, res) => {
   });
 });
 
-// --------------------------------------------------
-// VAPI TOOL WEBHOOK
-// --------------------------------------------------
+// ==================================================
+// VAPI WEBHOOK
+// ==================================================
 
 app.post("/vapi-webhook", async (req, res) => {
   console.log("================================");
   console.log("VAPI WEBHOOK");
+  console.log("Request Body:");
   console.log(JSON.stringify(req.body, null, 2));
 
   try {
     const message = req.body?.message;
 
+    // ------------------------------------------------
+    // No message
+    // ------------------------------------------------
+
     if (!message) {
+      console.log("No message found in request.");
+
       return res.status(200).json({
         results: [],
       });
     }
+
+    console.log("VAPI MESSAGE TYPE:", message.type);
+
+    // ------------------------------------------------
+    // Only process tool-calls
+    // ------------------------------------------------
 
     if (message.type !== "tool-calls") {
+      console.log("Not a tool-calls webhook.");
+
       return res.status(200).json({
         results: [],
       });
     }
 
-    const toolCalls = message.toolCallList || [];
+    // ------------------------------------------------
+    // Get tool calls
+    // ------------------------------------------------
+
+    const toolCalls =
+      message.toolCallList ||
+      message.toolCalls ||
+      message.toolCall ||
+      [];
+
+    console.log("MESSAGE OBJECT:");
+    console.log(JSON.stringify(message, null, 2));
+
+    console.log("TOOL CALL LIST:");
+    console.log(JSON.stringify(toolCalls, null, 2));
+
+    if (!Array.isArray(toolCalls)) {
+      console.log("Tool calls is not an array.");
+
+      return res.status(200).json({
+        results: [],
+      });
+    }
 
     const results = [];
 
+    // ==================================================
+    // PROCESS EACH TOOL CALL
+    // ==================================================
+
     for (const toolCall of toolCalls) {
-      const toolName = toolCall.name;
-      const toolCallId = toolCall.id;
-      const parameters = toolCall.parameters || {};
+      console.log("--------------------------------");
+      console.log("RAW TOOL CALL:");
+      console.log(JSON.stringify(toolCall, null, 2));
+
+      // ------------------------------------------------
+      // TOOL NAME
+      // ------------------------------------------------
+
+      let toolName =
+        toolCall?.name ||
+        toolCall?.toolName ||
+        toolCall?.function?.name ||
+        toolCall?.function?.toolName ||
+        toolCall?.functionCall?.name;
+
+      // ------------------------------------------------
+      // TOOL CALL ID
+      // ------------------------------------------------
+
+      const toolCallId =
+        toolCall?.id ||
+        toolCall?.toolCallId ||
+        toolCall?.callId ||
+        toolCall?.functionCall?.id ||
+        "";
+
+      // ------------------------------------------------
+      // PARAMETERS / ARGUMENTS
+      // ------------------------------------------------
+
+      let parameters =
+        toolCall?.parameters ??
+        toolCall?.arguments ??
+        toolCall?.function?.arguments ??
+        toolCall?.function?.parameters ??
+        toolCall?.functionCall?.parameters ??
+        {};
+
+      // ------------------------------------------------
+      // Parse parameters if they are a JSON string
+      // ------------------------------------------------
+
+      if (typeof parameters === "string") {
+        try {
+          parameters = JSON.parse(parameters);
+        } catch (error) {
+          console.log("Could not parse parameters string.");
+
+          parameters = {};
+        }
+      }
 
       console.log("Tool Name:", toolName);
       console.log("Tool Call ID:", toolCallId);
-      console.log("Parameters:", JSON.stringify(parameters));
+      console.log(
+        "Parameters:",
+        JSON.stringify(parameters, null, 2)
+      );
 
-      // ----------------------------------------------
+      // ==================================================
+      // FALLBACK TOOL NAME
+      // ==================================================
+
+      /*
+        Some Vapi payload versions can wrap the actual
+        function information differently.
+
+        If the tool name is still missing, try to detect
+        verify_customer from the parameters.
+      */
+
+      if (!toolName) {
+        if (
+          parameters &&
+          typeof parameters === "object" &&
+          Object.prototype.hasOwnProperty.call(
+            parameters,
+            "customer_name"
+          )
+        ) {
+          toolName = "verify_customer";
+
+          console.log(
+            "Tool name was missing, but customer_name was found."
+          );
+
+          console.log(
+            "Assuming tool = verify_customer"
+          );
+        }
+      }
+
+      console.log("FINAL TOOL NAME:", toolName);
+
+      // ==================================================
       // VERIFY CUSTOMER
-      // ----------------------------------------------
+      // ==================================================
 
       if (toolName === "verify_customer") {
-        const customerName = parameters.customer_name;
+        const customerName = parameters?.customer_name;
 
-        console.log("VAPI VERIFY CUSTOMER:", customerName);
+        console.log(
+          "VAPI VERIFY CUSTOMER:",
+          customerName
+        );
 
         let result;
 
         if (
           customerName &&
-          customerName.trim().toLowerCase() === "rahul sharma"
+          String(customerName).trim().toLowerCase() ===
+            "rahul sharma"
         ) {
+          console.log("Customer VERIFIED");
+
           result = {
             success: true,
             verified: true,
             customer_id: "KAP1001",
             customer_name: "Rahul Sharma",
-            message: "Customer identity verified successfully.",
+            message:
+              "Customer identity verified successfully.",
           };
         } else {
+          console.log("Customer NOT VERIFIED");
+
           result = {
             success: true,
             verified: false,
             customer_id: null,
-            customer_name: customerName || "",
-            message: "Customer identity could not be verified.",
+            customer_name: customerName
+              ? String(customerName)
+              : "",
+            message:
+              "Customer identity could not be verified.",
           };
         }
 
@@ -223,16 +364,24 @@ app.post("/vapi-webhook", async (req, res) => {
           toolCallId: toolCallId,
           result: JSON.stringify(result),
         });
+
+        continue;
       }
 
-      // ----------------------------------------------
+      // ==================================================
       // CUSTOMER DETAILS
-      // ----------------------------------------------
+      // ==================================================
 
-      else if (toolName === "customer_details") {
-        const customerId = parameters.customer_id;
+      if (
+        toolName === "customer_details" ||
+        toolName === "customer-details"
+      ) {
+        const customerId = parameters?.customer_id;
 
-        console.log("VAPI CUSTOMER DETAILS:", customerId);
+        console.log(
+          "VAPI CUSTOMER DETAILS:",
+          customerId
+        );
 
         let result;
 
@@ -258,21 +407,29 @@ app.post("/vapi-webhook", async (req, res) => {
           toolCallId: toolCallId,
           result: JSON.stringify(result),
         });
+
+        continue;
       }
 
-      // ----------------------------------------------
+      // ==================================================
       // LOG PROMISE TO PAY
-      // ----------------------------------------------
+      // ==================================================
 
-      else if (toolName === "log_promise_to_pay") {
-        const customerId = parameters.customer_id;
-        const promiseDate = parameters.promise_date;
-        const promiseAmount = parameters.promise_amount;
+      if (
+        toolName === "log_promise_to_pay" ||
+        toolName === "log-promise-to-pay"
+      ) {
+        const customerId = parameters?.customer_id;
+        const promiseDate = parameters?.promise_date;
+        const promiseAmount = parameters?.promise_amount;
 
         console.log("VAPI PROMISE TO PAY");
         console.log("Customer ID:", customerId);
         console.log("Promise Date:", promiseDate);
-        console.log("Promise Amount:", promiseAmount);
+        console.log(
+          "Promise Amount:",
+          promiseAmount
+        );
 
         const result = {
           success: true,
@@ -286,23 +443,33 @@ app.post("/vapi-webhook", async (req, res) => {
           toolCallId: toolCallId,
           result: JSON.stringify(result),
         });
+
+        continue;
       }
 
-      // ----------------------------------------------
+      // ==================================================
       // UNKNOWN TOOL
-      // ----------------------------------------------
+      // ==================================================
 
-      else {
-        results.push({
-          toolCallId: toolCallId,
-          result: JSON.stringify({
-            success: false,
-            message: `Unknown tool: ${toolName}`,
-          }),
-        });
-      }
+      console.log(
+        "UNKNOWN TOOL:",
+        toolName
+      );
+
+      results.push({
+        toolCallId: toolCallId,
+        result: JSON.stringify({
+          success: false,
+          message: `Unknown tool: ${toolName || "undefined"}`,
+        }),
+      });
     }
 
+    // ==================================================
+    // SEND RESPONSE TO VAPI
+    // ==================================================
+
+    console.log("================================");
     console.log("VAPI RESPONSE:");
     console.log(JSON.stringify({ results }, null, 2));
 
@@ -310,12 +477,16 @@ app.post("/vapi-webhook", async (req, res) => {
       results,
     });
   } catch (error) {
-    console.error("VAPI WEBHOOK ERROR:", error);
+    console.error("================================");
+    console.error("VAPI WEBHOOK ERROR:");
+    console.error(error);
 
     return res.status(200).json({
       results: [
         {
-          toolCallId: req.body?.message?.toolCallList?.[0]?.id || "",
+          toolCallId:
+            req.body?.message?.toolCallList?.[0]?.id ||
+            "",
           error: "Tool execution failed.",
         },
       ],
@@ -323,10 +494,12 @@ app.post("/vapi-webhook", async (req, res) => {
   }
 });
 
-// --------------------------------------------------
+// ==================================================
 // START SERVER
-// --------------------------------------------------
+// ==================================================
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Kapture Maya API running on port ${PORT}`);
+  console.log(
+    `Kapture Maya API running on port ${PORT}`
+  );
 });
